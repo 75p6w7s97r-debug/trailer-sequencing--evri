@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Trailer Seq">
+<meta name="theme-color" content="#174a73">
+<title>Trailer Sequencing 71–88 — Touch Yard</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f3f5f7;color:#17232d;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+header{background:#174a73;color:#fff;padding:16px 14px 12px;padding-top:calc(16px + env(safe-area-inset-top));position:sticky;top:0;z-index:5}
+h1{font-size:21px;margin:0 0 4px}header p{margin:0;font-size:12px;opacity:.9}
+nav{display:flex;gap:6px;overflow:auto;background:#fff;padding:8px;position:sticky;top:65px;z-index:4;border-bottom:1px solid #d7dde3}
+nav button{border:0;border-radius:10px;padding:10px 12px;font-weight:700;background:#e8edf1;color:#20303b;white-space:nowrap}nav button.active{background:#174a73;color:#fff}
+main{max-width:900px;margin:auto;padding:11px 11px 30px}.hide{display:none!important}.card{background:#fff;border:1px solid #d7dde3;border-radius:13px;padding:12px;margin:9px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.full{grid-column:1/-1}
+label{font-size:12px;color:#65737e;font-weight:700;display:block;margin-bottom:4px}
+input,select,button{font:inherit}input,select{width:100%;padding:11px;border:1px solid #c7d0d8;border-radius:9px;background:#fff}
+.btn{border:0;border-radius:10px;padding:11px 13px;background:#174a73;color:#fff;font-weight:800}.secondary{background:#e8edf1;color:#20303b}.danger{background:#b42318}
+.row{display:flex;gap:8px}.row>*{flex:1}.small{font-size:12px;color:#65737e}
+.bays{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.bay{padding:9px 4px;border-radius:9px;text-align:center;border:1px solid #d7dde3;background:#dff3e4;font-size:12px;min-height:60px}
+.occ{background:#fff0b3}.correct{background:#c6efce;border-color:#198754;box-shadow:inset 0 0 0 2px #198754}.broken{background:#ffd9d9}.std{box-shadow:inset 0 0 0 3px #8b5cf6}
+.tag{display:inline-block;padding:3px 7px;border-radius:99px;font-size:11px;font-weight:800;margin:3px 2px;background:#eadcff}.early{background:#fff0b3}
+.bay{touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+.bay.dragging{opacity:.45;transform:scale(.96)}
+.bay.drop-target{outline:4px solid #174a73;outline-offset:2px}
+.touchHint{font-size:12px;color:#65737e;margin-top:6px}
+.move{border-left:7px solid #174a73}.block{border-left:7px solid #b42318;background:#fff8f8}.wait{border-left:7px solid #d18b00;background:#fffaf0}.stay{border-left:7px solid #198754;background:#f3fff7}.empty{background:#f7f9fb;border-style:dashed}.move b:first-child,.block b:first-child,.wait b:first-child,.stay b:first-child{font-size:16px}
+.summary{background:#eef3f6;border-radius:10px;padding:10px;margin-bottom:10px}
+@media(min-width:700px){.bays{grid-template-columns:repeat(6,1fr)}}
+</style>
+</head>
+<body>
+<header>
+<h1>Trailer Sequencing</h1>
+<p>WAREHOUSE CONTROL • DOORS 71–88</p>
+<div style="display:flex;gap:6px;margin-top:10px">
+<span style="background:#dff3e4;color:#17232d;padding:5px 8px;border-radius:8px;font-size:11px;font-weight:800">OFFLINE READY</span>
+<span style="background:#fff0b3;color:#17232d;padding:5px 8px;border-radius:8px;font-size:11px;font-weight:800">TIME PRIORITY</span>
+</div>
+</header>
+<nav>
+<button class="active" onclick="show('yard',this)">🏭 Yard</button>
+<button onclick="show('moves',this)">🚚 Moves</button>
+<button onclick="show('final',this)">📋 Final</button>
+<button onclick="show('backup',this)">💾 Backup</button>
+</nav>
+<main>
+<div class="card" style="background:#dff3e4;border-color:#b7d9c0"><b>Offline mode</b><br><span class="small">This app is self-contained. Once saved/installed, no internet is needed for normal use. Your entries are kept on this device.</span></div>
+
+<section id="yard">
+<div class="card"><h2>Enter / edit door</h2>
+<div class="grid">
+<div><label>Door</label><select id="door"></select></div>
+<div><label>Starting depot / destination</label><input id="dest" placeholder="e.g. Sheffield" autocomplete="off"></div>
+<div><label>Departure time</label><input id="dep" type="datetime-local"></div>
+<div><label>Trailer size</label><select id="size"><option>Normal</option><option>Standard</option><option>Large</option></select></div>
+<div><label>Early move?</label><select id="early"><option>NO</option><option>YES</option></select></div>
+<div><label>Door usable?</label><select id="usable"><option>YES</option><option>NO</option></select></div>
+<div class="full"><label>Notes</label><input id="notes" placeholder="Optional" autocomplete="off"></div>
+</div>
+<div class="row" style="margin-top:10px"><button class="btn" onclick="saveDoor()">Save door</button><button class="btn secondary" onclick="clearForm()">Clear form</button><button class="btn danger" onclick="clearBay()">Clear bay</button></div>
+</div>
+<div class="card"><h2>Live doors</h2><div id="bays" class="bays"></div><div class="touchHint">Touch and hold a trailer, then slide it onto another bay. The door numbers stay fixed; the trailer location moves.</div></div>
+</section>
+
+<section id="moves" class="hide">
+<div class="card"><h2>🚚 MOVE SEQUENCE</h2>
+<div id="moveSummary" class="summary" style="font-size:15px"></div>
+<p class="small">Moves are listed in departure-time order. Each line simply tells you where the trailer moves next. Green trailers in the Live Yard are already in their correct final bay.</p>
+<div id="moveList"></div>
+</div>
+</section>
+
+<section id="final" class="hide">
+<div class="card"><h2>📋 PERMANENT FINAL ORDER</h2><p class="small">Green = correct final position. Purple outline / label = standard trailer size.</p><div id="finalList"></div></div>
+</section>
+
+<section id="backup" class="hide">
+<div class="card"><h2>Backup & restore</h2>
+<p class="small">Use Export regularly. If Safari data is cleared, a backup lets you restore the yard.</p>
+<div class="row"><button class="btn" onclick="exportData()">Export</button><button class="btn secondary" onclick="copyBackup()">Copy backup</button></div>
+<textarea id="backupText" style="width:100%;min-height:150px;margin-top:10px;padding:10px;border:1px solid #c7d0d8;border-radius:9px;font-family:monospace"></textarea>
+<div class="row" style="margin-top:8px"><button class="btn secondary" onclick="importData()">Restore</button><button class="btn danger" onclick="clearAll()">Clear all</button></div>
+</div>
+</section>
+</main>
+<script>
+const FINAL={71:"Bolton",72:"Winwick",73:"Lutterworth",74:"Gatwick",75:"Gatwick",76:"EMPTY BAY",77:"Bury St Edmunds",78:"Pen Y Bont",79:"EMPTY BAY",80:"Avonmouth",81:"EMPTY BAY",82:"Swindon",83:"Crewe",84:"Brooklands",85:"Southampton",86:"Lakeside",87:"Birmingham",88:"Maidstone"};
+const STANDARD=["Swindon","Crewe","Brooklands"];
+const DOORS=Array.from({length:18},(_,i)=>71+i);
+let data={};
+try{data=JSON.parse(localStorage.getItem("trailerSeq7188")||"{}")}catch(e){data={}}
+
+function persist(){localStorage.setItem("trailerSeq7188",JSON.stringify(data));render()}
+function show(id,btn){document.querySelectorAll("main section").forEach(x=>x.classList.add("hide"));document.getElementById(id).classList.remove("hide");document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));btn.classList.add("active");render()}
+function init(){door.innerHTML=DOORS.map(d=>`<option>${d}</option>`).join("");let n=new Date();n.setMinutes(n.getMinutes()-n.getTimezoneOffset());dep.value=n.toISOString().slice(0,16);render()}
+function saveDoor(){let b=+door.value;if(!dest.value.trim()&&usable.value==="YES"){alert("Enter a destination, or mark the door unusable.");return}data[b]={dest:dest.value.trim(),dep:dep.value,size:size.value,early:early.value,usable:usable.value,notes:notes.value};persist();clearForm();alert("Saved. Open Suggested Moves to see the next action.")}
+function clearForm(){dest.value="";dep.value=new Date().toISOString().slice(0,16);size.value="Normal";early.value="NO";usable.value="YES";notes.value=""}
+function clearBay(){
+  const b=+door.value;
+  if(!data[b]){ alert(`Bay ${b} is already empty.`); return; }
+  const name=data[b].dest||"this trailer";
+  if(confirm(`Clear Bay ${b} and remove ${name}?`)){
+    delete data[b];
+    persist();
+    clearForm();
+    alert(`Bay ${b} is now an Empty Bay.`);
+  }
+}
+function edit(b){door.value=b;let x=data[b];if(x){dest.value=x.dest||"";dep.value=x.dep||"";size.value=x.size||"Normal";early.value=x.early||"NO";usable.value=x.usable||"YES";notes.value=x.notes||""}else clearForm();show("yard",document.querySelector("nav button"))}
+function t(x){return x&&x.dep?new Date(x.dep).getTime():Infinity}
+function findEmpty(working, excludeTarget){
+  return DOORS.find(d=>!working[d] && d!==excludeTarget && (!data[d] || data[d].usable!=='NO')) || null;
+}
+function findCurrentDoor(working, dest){
+  const k=(dest||'').trim().toLowerCase();
+  return DOORS.find(d=>working[d]&&working[d].dest&&working[d].dest.trim().toLowerCase()===k) || null;
+}
+function targetFor(dest, counts){
+  const k=(dest||'').trim().toLowerCase();
+  const slots=DOORS.filter(d=>(FINAL[d]||'').toLowerCase()===k);
+  const n=counts[k]||0; counts[k]=n+1;
+  return slots[n]||null;
+}
+function plan(){
+  let working=JSON.parse(JSON.stringify(data));
+  const arr=Object.entries(working)
+    .filter(([d,x])=>x&&x.dest&&x.usable!=='NO')
+    .map(([d,x])=>({door:+d,...x}));
+  arr.sort((a,b)=>t(a)-t(b)||a.door-b.door);
+
+  // Assign duplicate destinations (such as the two Gatwick trailers) to
+  // their successive final bays in departure-time order.
+  const counts={}, items=[];
+  for(const x of arr){ items.push({...x,target:targetFor(x.dest,counts)}); }
+
+  const moves=[];
+  const released=new Set();
+  const releaseTime=()=>new Date();
+
+  function organiseReleased(){
+    let changed=true;
+    while(changed){
+      changed=false;
+      for(const item of items){
+        if(!released.has(item)) continue;
+        if(!item.target) continue;
+        const cur=findCurrentDoor(working,item.dest);
+        if(cur===null || cur===item.target) continue;
+        if(working[item.target]) continue;
+        moves.push({type:'final',text:`FINAL ORGANISING MOVE — ${item.dest}: Empty Bay ${cur} → Door ${item.target}`,reason:`Door ${item.target} is now empty; ${item.dest} was released at ${formatDep(item.dep)}.`});
+        working[item.target]=working[cur];
+        delete working[cur];
+        changed=true;
+      }
+    }
+  }
+
+  for(const item of items){
+    released.add(item);
+    let cur=findCurrentDoor(working,item.dest);
+    if(!item.target){
+      moves.push({type:'check',text:`CHECK — ${item.dest} is not in the fixed final order.`,reason:'Add this destination to the final bay plan before organising it.'});
+      continue;
+    }
+
+    if(cur===item.target){
+      moves.push({type:'stay',text:`CORRECT — ${item.dest} is already in Door ${item.target}.`,reason:'No move required. This trailer is already in its final position.'});
+      organiseReleased();
+      continue;
+    }
+
+    // At its departure time the trailer becomes movable. It must first be
+    // taken to any available empty bay; this creates the working space used
+    // to build the final order.
+    if(cur===null){
+      moves.push({type:'blocked',text:`BLOCKED — ${item.dest} could not be located in the live yard.`,reason:'Check the live yard entry for this destination.'});
+      continue;
+    }
+
+    const empty=findEmpty(working,item.target);
+    if(empty===null){
+      moves.push({type:'blocked',text:`BLOCKED — ${item.dest} is released at ${formatDep(item.dep)}, but there is no empty usable bay available.`,reason:`It cannot move until an empty bay is available.`});
+      continue;
+    }
+
+    moves.push({type:'depart',text:`DEPARTURE MOVE — ${item.dest}: Door ${cur} → Empty Bay ${empty}`,reason:`Released at ${formatDep(item.dep)}. Trailer was static before this time.`});
+    working[empty]=working[cur];
+    delete working[cur];
+
+    // Immediately use the newly created space to organise every released
+    // trailer whose final bay is now free.
+    organiseReleased();
+  }
+
+  // If a future departure is present, the full map above still shows the
+  // future departure move and the subsequent final organisation opportunities.
+  // Anything that cannot be resolved is explicitly marked BLOCKED rather than
+  // pretending an impossible move is possible.
+  return moves;
+}
+function formatDep(v){if(!v)return "departure time not set";let d=new Date(v);return isNaN(d)?v:d.toLocaleString([], {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});}
+
+
+let dragState=null;
+
+function bayAtPoint(x,y){
+  const el=document.elementFromPoint(x,y);
+  return el ? el.closest(".bay") : null;
+}
+
+function startBayTouch(e){
+  const el=e.currentTarget;
+  const b=+el.dataset.door;
+  if(!data[b]) return; // only trailers can be moved
+  dragState={source:b,el,startX:e.clientX,startY:e.clientY,moved:false,target:null};
+  el.setPointerCapture?.(e.pointerId);
+  e.preventDefault();
+}
+
+function moveBayTouch(e){
+  if(!dragState) return;
+  const dx=e.clientX-dragState.startX, dy=e.clientY-dragState.startY;
+  if(!dragState.moved && Math.hypot(dx,dy)<8) return;
+  dragState.moved=true;
+  dragState.el.classList.add('dragging');
+  const target=bayAtPoint(e.clientX,e.clientY);
+  document.querySelectorAll(".bay.drop-target").forEach(x=>x.classList.remove("drop-target"));
+  if(target && +target.dataset.door!==dragState.source){
+    target.classList.add("drop-target");
+    dragState.target=+target.dataset.door;
+  }else dragState.target=null;
+  e.preventDefault();
+}
+
+function endBayTouch(e){
+  if(!dragState) return;
+  const s=dragState.source, target=dragState.target, el=dragState.el;
+  document.querySelectorAll(".bay").forEach(x=>x.classList.remove("drop-target","dragging"));
+  try{el.releasePointerCapture?.(e.pointerId)}catch(_){}
+  const wasDrag=dragState.moved;
+  dragState=null;
+  if(wasDrag){
+    if(target==null || target===s) return;
+    if(data[target] && data[target].usable==="NO"){
+      alert("That bay is marked unusable.");
+      render();
+      return;
+    }
+    // Keep door numbers fixed; swap only the trailer/location records.
+    const tmp=data[s];
+    data[s]=data[target];
+    if(data[s]===undefined) delete data[s];
+    if(tmp===undefined) delete data[target];
+    else data[target]=tmp;
+    persist();
+  }else{
+    edit(s);
+  }
+}
+
+function setupBayTouch(){
+  document.querySelectorAll(".bay").forEach(el=>{
+    el.addEventListener("pointerdown",startBayTouch,{passive:false});
+    el.addEventListener("pointermove",moveBayTouch,{passive:false});
+    el.addEventListener("pointerup",endBayTouch,{passive:false});
+    el.addEventListener("pointercancel",endBayTouch,{passive:false});
+  });
+}
+
+function render(){
+ bays.innerHTML=DOORS.map(b=>{
+   let x=data[b], correct=!!(x&&x.dest&&FINAL[b]&&FINAL[b]!=="EMPTY BAY"&&x.dest.toLowerCase()===FINAL[b].toLowerCase());
+   let cl=x&&x.usable==="NO"?"broken":correct?"correct":x?"occ":"empty";
+   let st=x&&STANDARD.includes(x.dest)?"std":"";
+   return `<div class="bay ${cl} ${st}" data-door="${b}"><b>${b}</b><br>${x?(x.dest||"UNNAMED"):"EMPTY BAY"}<br><span class="small">${x&&x.usable==="NO"?"UNUSABLE":correct?"CORRECT POSITION":x&&x.early==="YES"?"EARLY MOVE":""}</span></div>`
+ }).join("");
+ setupBayTouch();
+ let p=plan(), physical=p.filter(x=>["depart","organise","final"].includes(x.type)).length, releases=p.filter(x=>x.type==="wait").length;
+ moveSummary.innerHTML=`<b>${physical}</b> move(s) in chronological order${p.filter(x=>x.type==="blocked").length?" — some cannot be completed until an empty bay is available.":"."}`;
+ const simpleMoves=p.filter(x=>["depart","final"].includes(x.type));
+ moveList.innerHTML=simpleMoves.length?simpleMoves.map((x,i)=>{
+   let text=x.type==="depart"?x.text.replace(/^DEPARTURE MOVE — /,""):x.text.replace(/^FINAL ORGANISING MOVE — /,"");
+   text=text.replace(/: Empty Bay /," → Empty Bay ").replace(/: Empty Bay /," → Empty Bay ");
+   text=text.replace(/: Door /," → Door ");
+   return `<div class="card move"><b>${i+1}. ${text}</b></div>`;
+ }).join(""):(p.length?"<p>No moves required — trailers are already in their final positions.</p>":"<p>No trailers entered yet.</p>");
+ finalList.innerHTML=DOORS.map(b=>`<div class="card ${STANDARD.includes(FINAL[b])?"std":""}"><b>Door ${b}</b> — ${FINAL[b]==="EMPTY BAY"?"EMPTY BAY":FINAL[b]}${STANDARD.includes(FINAL[b])?'<br><span class="tag">STANDARD TRAILER SIZE</span>':""}</div>`).join("");
+}
+
+function exportData(){backupText.value=JSON.stringify(data,null,2)}
+function copyBackup(){exportData();if(navigator.clipboard)navigator.clipboard.writeText(backupText.value).then(()=>alert("Backup copied."),()=>alert("Backup shown below — copy it manually."));else alert("Backup shown below — copy it manually.")}
+function importData(){try{let x=JSON.parse(backupText.value);if(!x||typeof x!=="object")throw 0;data=x;persist();alert("Backup restored.")}catch(e){alert("That backup is not valid.")}}
+function clearAll(){if(confirm("Clear all live yard data?")){data={};persist()}}
+init();
+</script>
+</body></html>
