@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Trailer Seq">
 <meta name="theme-color" content="#174a73">
-<title>Trailer Sequencing 71–88</title>
+<title>Trailer Sequencing 71–88 — Touch Yard</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#f3f5f7;color:#17232d;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 header{background:#174a73;color:#fff;padding:16px 14px 12px;padding-top:calc(16px + env(safe-area-inset-top));position:sticky;top:0;z-index:5}
@@ -23,6 +23,10 @@ input,select,button{font:inherit}input,select{width:100%;padding:11px;border:1px
 .bays{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.bay{padding:9px 4px;border-radius:9px;text-align:center;border:1px solid #d7dde3;background:#dff3e4;font-size:12px;min-height:60px}
 .occ{background:#fff0b3}.correct{background:#c6efce;border-color:#198754;box-shadow:inset 0 0 0 2px #198754}.broken{background:#ffd9d9}.std{box-shadow:inset 0 0 0 3px #8b5cf6}
 .tag{display:inline-block;padding:3px 7px;border-radius:99px;font-size:11px;font-weight:800;margin:3px 2px;background:#eadcff}.early{background:#fff0b3}
+.bay{touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+.bay.dragging{opacity:.45;transform:scale(.96)}
+.bay.drop-target{outline:4px solid #174a73;outline-offset:2px}
+.touchHint{font-size:12px;color:#65737e;margin-top:6px}
 .move{border-left:7px solid #174a73}.block{border-left:7px solid #b42318;background:#fff8f8}.wait{border-left:7px solid #d18b00;background:#fffaf0}.stay{border-left:7px solid #198754;background:#f3fff7}.empty{background:#f7f9fb;border-style:dashed}.move b:first-child,.block b:first-child,.wait b:first-child,.stay b:first-child{font-size:16px}
 .summary{background:#eef3f6;border-radius:10px;padding:10px;margin-bottom:10px}
 @media(min-width:700px){.bays{grid-template-columns:repeat(6,1fr)}}
@@ -59,7 +63,7 @@ input,select,button{font:inherit}input,select{width:100%;padding:11px;border:1px
 </div>
 <div class="row" style="margin-top:10px"><button class="btn" onclick="saveDoor()">Save door</button><button class="btn secondary" onclick="clearForm()">Clear form</button><button class="btn danger" onclick="clearBay()">Clear bay</button></div>
 </div>
-<div class="card"><h2>Live doors</h2><div id="bays" class="bays"></div></div>
+<div class="card"><h2>Live doors</h2><div id="bays" class="bays"></div><div class="touchHint">Touch and hold a trailer, then slide it onto another bay. The door numbers stay fixed; the trailer location moves.</div></div>
 </section>
 
 <section id="moves" class="hide">
@@ -96,13 +100,49 @@ function init(){door.innerHTML=DOORS.map(d=>`<option>${d}</option>`).join("");le
 function saveDoor(){let b=+door.value;if(!dest.value.trim()&&usable.value==="YES"){alert("Enter a destination, or mark the door unusable.");return}data[b]={dest:dest.value.trim(),dep:dep.value,size:size.value,early:early.value,usable:usable.value,notes:notes.value};persist();clearForm();alert("Saved. Open Suggested Moves to see the next action.")}
 function clearForm(){dest.value="";dep.value=new Date().toISOString().slice(0,16);size.value="Normal";early.value="NO";usable.value="YES";notes.value=""}
 function clearBay(){
-  const b=+door.value;
-  if(!data[b]){ alert(`Bay ${b} is already empty.`); return; }
-  const name=data[b].dest||"this trailer";
-  if(confirm(`Clear Bay ${b} and remove ${name}?`)){
-    delete data[b];
-    persist();
+  const doorEl=document.getElementById("door");
+  const destEl=document.getElementById("dest");
+  const depEl=document.getElementById("dep");
+  const sizeEl=document.getElementById("size");
+  const earlyEl=document.getElementById("early");
+  const usableEl=document.getElementById("usable");
+  const notesEl=document.getElementById("notes");
+  const b=Number(doorEl.value);
+
+  if(!Number.isFinite(b) || !DOORS.includes(b)){
+    alert("Select a valid bay first.");
+    return;
+  }
+
+  if(!Object.prototype.hasOwnProperty.call(data,b)){
     clearForm();
+    render();
+    alert(`Bay ${b} is already an Empty Bay.`);
+    return;
+  }
+
+  const name=data[b].dest || "this trailer";
+
+  if(confirm(`Clear Bay ${b} and remove ${name}?`)){
+    // Remove the trailer completely from this bay.
+    delete data[b];
+
+    // Save immediately, then redraw the Live Yard so the bay remains EMPTY BAY.
+    try {
+      localStorage.setItem("trailerSeq7188", JSON.stringify(data));
+    } catch(e) {}
+
+    destEl.value="";
+    let n=new Date();
+    n.setMinutes(n.getMinutes()-n.getTimezoneOffset());
+    depEl.value=n.toISOString().slice(0,16);
+    sizeEl.value="Normal";
+    earlyEl.value="NO";
+    usableEl.value="YES";
+    notesEl.value="";
+
+    render();
+    doorEl.value=String(b);
     alert(`Bay ${b} is now an Empty Bay.`);
   }
 }
@@ -200,13 +240,81 @@ function plan(){
 }
 function formatDep(v){if(!v)return "departure time not set";let d=new Date(v);return isNaN(d)?v:d.toLocaleString([], {day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});}
 
+
+let dragState=null;
+
+function bayAtPoint(x,y){
+  const el=document.elementFromPoint(x,y);
+  return el ? el.closest(".bay") : null;
+}
+
+function startBayTouch(e){
+  const el=e.currentTarget;
+  const b=+el.dataset.door;
+  if(!data[b]) return; // only trailers can be moved
+  dragState={source:b,el,startX:e.clientX,startY:e.clientY,moved:false,target:null};
+  el.setPointerCapture?.(e.pointerId);
+  e.preventDefault();
+}
+
+function moveBayTouch(e){
+  if(!dragState) return;
+  const dx=e.clientX-dragState.startX, dy=e.clientY-dragState.startY;
+  if(!dragState.moved && Math.hypot(dx,dy)<8) return;
+  dragState.moved=true;
+  dragState.el.classList.add('dragging');
+  const target=bayAtPoint(e.clientX,e.clientY);
+  document.querySelectorAll(".bay.drop-target").forEach(x=>x.classList.remove("drop-target"));
+  if(target && +target.dataset.door!==dragState.source){
+    target.classList.add("drop-target");
+    dragState.target=+target.dataset.door;
+  }else dragState.target=null;
+  e.preventDefault();
+}
+
+function endBayTouch(e){
+  if(!dragState) return;
+  const s=dragState.source, target=dragState.target, el=dragState.el;
+  document.querySelectorAll(".bay").forEach(x=>x.classList.remove("drop-target","dragging"));
+  try{el.releasePointerCapture?.(e.pointerId)}catch(_){}
+  const wasDrag=dragState.moved;
+  dragState=null;
+  if(wasDrag){
+    if(target==null || target===s) return;
+    if(data[target] && data[target].usable==="NO"){
+      alert("That bay is marked unusable.");
+      render();
+      return;
+    }
+    // Keep door numbers fixed; swap only the trailer/location records.
+    const tmp=data[s];
+    data[s]=data[target];
+    if(data[s]===undefined) delete data[s];
+    if(tmp===undefined) delete data[target];
+    else data[target]=tmp;
+    persist();
+  }else{
+    edit(s);
+  }
+}
+
+function setupBayTouch(){
+  document.querySelectorAll(".bay").forEach(el=>{
+    el.addEventListener("pointerdown",startBayTouch,{passive:false});
+    el.addEventListener("pointermove",moveBayTouch,{passive:false});
+    el.addEventListener("pointerup",endBayTouch,{passive:false});
+    el.addEventListener("pointercancel",endBayTouch,{passive:false});
+  });
+}
+
 function render(){
  bays.innerHTML=DOORS.map(b=>{
    let x=data[b], correct=!!(x&&x.dest&&FINAL[b]&&FINAL[b]!=="EMPTY BAY"&&x.dest.toLowerCase()===FINAL[b].toLowerCase());
    let cl=x&&x.usable==="NO"?"broken":correct?"correct":x?"occ":"empty";
    let st=x&&STANDARD.includes(x.dest)?"std":"";
-   return `<div class="bay ${cl} ${st}" onclick="edit(${b})"><b>${b}</b><br>${x?(x.dest||"UNNAMED"):"EMPTY BAY"}<br><span class="small">${x&&x.usable==="NO"?"UNUSABLE":correct?"CORRECT POSITION":x&&x.early==="YES"?"EARLY MOVE":""}</span></div>`
+   return `<div class="bay ${cl} ${st}" data-door="${b}"><b>${b}</b><br>${x?(x.dest||"UNNAMED"):"EMPTY BAY"}<br><span class="small">${x&&x.usable==="NO"?"UNUSABLE":correct?"CORRECT POSITION":x&&x.early==="YES"?"EARLY MOVE":""}</span></div>`
  }).join("");
+ setupBayTouch();
  let p=plan(), physical=p.filter(x=>["depart","organise","final"].includes(x.type)).length, releases=p.filter(x=>x.type==="wait").length;
  moveSummary.innerHTML=`<b>${physical}</b> move(s) in chronological order${p.filter(x=>x.type==="blocked").length?" — some cannot be completed until an empty bay is available.":"."}`;
  const simpleMoves=p.filter(x=>["depart","final"].includes(x.type));
